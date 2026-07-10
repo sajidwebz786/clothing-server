@@ -1,7 +1,6 @@
 const { Category } = require('../models');
-const { uploadCategory } = require('../config/upload');
 
-const generateImagePath = (filename) => `/uploads/categories/${filename}`;
+const generateImagePath = (filename) => filename?.startsWith('http') ? filename : `/uploads/categories/${filename}`;
 
 exports.getCategories = async (req, res) => {
   console.log('[SERVER] getCategories called')
@@ -44,16 +43,11 @@ exports.createCategory = async (req, res) => {
 
 exports.uploadCategoryImage = (req, res) => {
   req.headers['upload-type'] = 'category';
-  uploadCategory(req, res, (err) => {
-    if (err) {
-      return res.status(400).json({ message: err.message });
-    }
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-    const image = generateImagePath(req.file.filename);
-    res.json({ image });
-  });
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+  const image = generateImagePath(req.file.filename);
+  res.json({ image });
 };
 
 exports.updateCategory = async (req, res) => {

@@ -1,9 +1,16 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { v2: cloudinary } = require('cloudinary');
+require('dotenv').config();
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_SIZE = 5 * 1024 * 1024;
+const useCloudinary = Boolean(process.env.CLOUDINARY_URL);
+
+if (useCloudinary) {
+  cloudinary.config({ secure: true });
+}
 
 // Ensure upload directories exist
 const ensureDir = (dir) => {
@@ -50,13 +57,47 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+const uploadBufferToCloudinary = (file, folder) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `wildzoc/${folder}`,
+        resource_type: 'image',
+        use_filename: true,
+        unique_filename: true
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    stream.end(file.buffer);
+  });
+};
+
+const attachCloudinaryUrls = async (req, folder) => {
+  if (!useCloudinary) return;
+
+  if (req.files?.length) {
+    req.files = await Promise.all(req.files.map(async (file) => {
+      const result = await uploadBufferToCloudinary(file, folder);
+      return { ...file, filename: result.secure_url, path: result.secure_url, cloudinary_public_id: result.public_id };
+    }));
+  }
+
+  if (req.file) {
+    const result = await uploadBufferToCloudinary(req.file, folder);
+    req.file = { ...req.file, filename: result.secure_url, path: result.secure_url, cloudinary_public_id: result.public_id };
+  }
+};
+
 // Middleware factory for products (handles multiple images)
 const uploadProducts = (req, res, next) => {
   multer({
-    storage: productStorage,
+    storage: useCloudinary ? multer.memoryStorage() : productStorage,
     limits: { fileSize: MAX_SIZE },
     fileFilter
-  }).array('images', 5)(req, res, (err) => {
+  }).array('images', 5)(req, res, async (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_COUNT') {
@@ -69,17 +110,22 @@ const uploadProducts = (req, res, next) => {
       }
       return res.status(400).json({ error: err.message });
     }
-    next();
+    try {
+      await attachCloudinaryUrls(req, 'products');
+      next();
+    } catch (error) {
+      return res.status(500).json({ error: `Cloudinary upload failed: ${error.message}` });
+    }
   });
 };
 
 // Middleware factory for categories (handles single image)
 const uploadCategory = (req, res, next) => {
   multer({
-    storage: categoryStorage,
+    storage: useCloudinary ? multer.memoryStorage() : categoryStorage,
     limits: { fileSize: MAX_SIZE },
     fileFilter
-  }).single('image')(req, res, (err) => {
+  }).single('image')(req, res, async (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -89,11 +135,17 @@ const uploadCategory = (req, res, next) => {
       }
       return res.status(400).json({ error: err.message });
     }
-    next();
+    try {
+      await attachCloudinaryUrls(req, 'categories');
+      next();
+    } catch (error) {
+      return res.status(500).json({ error: `Cloudinary upload failed: ${error.message}` });
+    }
   });
 };
 
 const generateImagePath = (filename, type) => {
+  if (filename?.startsWith('http')) return filename;
   const folder = type === 'category' ? 'categories' : 'products';
   return `/uploads/${folder}/${filename}`;
 };

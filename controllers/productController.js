@@ -1,8 +1,7 @@
 const { Product, Category } = require('../models');
 const { Op } = require('sequelize');
-const { uploadProducts } = require('../config/upload');
 
-const generateImagePath = (filename) => `/uploads/products/${filename}`;
+const generateImagePath = (filename) => filename?.startsWith('http') ? filename : `/uploads/products/${filename}`;
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const parseJsonField = (field) => {
@@ -134,16 +133,11 @@ exports.getClearanceProducts = async (req, res) => {
 
 exports.uploadProductImages = (req, res) => {
   req.headers['upload-type'] = 'product';
-  uploadProducts(req, res, (err) => {
-    if (err) {
-      return res.status(400).json({ message: err.message });
-    }
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: 'At least one image is required' });
-    }
-    const images = req.files.map(file => generateImagePath(file.filename));
-    res.json({ images });
-  });
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: 'At least one image is required' });
+  }
+  const images = req.files.map(file => generateImagePath(file.filename));
+  res.json({ images });
 };
 
 exports.createProduct = async (req, res) => {
