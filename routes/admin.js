@@ -7,5 +7,7 @@ router.get('/dashboard', adminAuth, adminController.getDashboardStats);
 router.get('/users', adminAuth, adminController.getAllUsers);
 router.get('/products', adminAuth, adminController.getAllProducts);
 router.get('/categories', adminAuth, adminController.getAllCategories);
+router.get('/cloudinary/images', adminAuth, adminController.getCloudinaryImages);
+router.get('/cloudinary-images', adminAuth, adminController.getCloudinaryImages);
 
 module.exports = router;

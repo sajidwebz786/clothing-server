@@ -1,5 +1,15 @@
 const { User, Product, Order, OrderItem, Category, Return } = require('../models');
 const { sequelize } = require('../models');
+const { v2: cloudinary } = require('cloudinary');
+
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({ secure: true });
+}
+
+const isBrandAsset = (resource) => {
+  const text = `${resource.public_id || ''} ${resource.filename || ''} ${resource.secure_url || ''}`.toLowerCase();
+  return ['logo', 'qr', 'hypzo', 'oldlogo', 'dark-logo', 'full-logo'].some((word) => text.includes(word));
+};
 
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -71,6 +81,45 @@ exports.getAllCategories = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
     res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getCloudinaryImages = async (req, res) => {
+  try {
+    if (!process.env.CLOUDINARY_URL) {
+      return res.status(400).json({ message: 'Cloudinary is not configured on the server.' });
+    }
+
+    const folder = req.query.folder || process.env.CLOUDINARY_GALLERY_FOLDER || '';
+    const resources = [];
+    let nextCursor;
+
+    do {
+      const result = await cloudinary.api.resources({
+        resource_type: 'image',
+        type: 'upload',
+        prefix: folder || undefined,
+        max_results: 100,
+        next_cursor: nextCursor
+      });
+      resources.push(...(result.resources || []));
+      nextCursor = result.next_cursor;
+    } while (nextCursor && resources.length < 300);
+
+    const images = resources
+      .filter((resource) => resource.secure_url && !isBrandAsset(resource))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map((resource) => ({
+        public_id: resource.public_id,
+        url: resource.secure_url,
+        width: resource.width,
+        height: resource.height,
+        created_at: resource.created_at
+      }));
+
+    res.json({ images });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
