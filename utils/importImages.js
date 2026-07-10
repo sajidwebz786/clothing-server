@@ -22,6 +22,7 @@ const isBrandAsset = (resource) => {
 
 const getCloudinaryImages = async (folder) => {
   if (!USE_CLOUDINARY) return [];
+  const configuredFolder = process.env.CLOUDINARY_PRODUCT_FOLDER || process.env.CLOUDINARY_ASSET_FOLDER;
 
   const collect = async (options) => {
     const resources = [];
@@ -40,9 +41,12 @@ const getCloudinaryImages = async (folder) => {
     return resources;
   };
 
-  let resources = await collect({ prefix: `wildzoc/${folder}` });
-  if (resources.length === 0) {
-    resources = await collect({});
+  const prefix = configuredFolder ? `${configuredFolder.replace(/\/$/, '')}/${folder}` : `wildzoc/${folder}`;
+  const resources = await collect({ prefix });
+
+  if (resources.length === 0 && !configuredFolder) {
+    console.log(`No Cloudinary images found under ${prefix}. Set CLOUDINARY_PRODUCT_FOLDER to intentionally sync another folder.`);
+    return [];
   }
 
   return resources

@@ -12,13 +12,13 @@ exports.register = async (req, res) => {
     const user = await User.create({ name, email, password, phone });
     const token = generateToken(user.id);
     notifyAdmin(
-      'New WildCtrl registration',
+      'New Wildzoc registration',
       `${user.name} registered with ${user.email}${user.phone ? ` / ${user.phone}` : ''}.`
     ).catch(() => {});
     sendMail({
       to: user.email,
-      subject: 'Welcome to WildCtrl',
-      text: `Hi ${user.name}, your WildCtrl account is ready.`
+      subject: 'Welcome to Wildzoc',
+      text: `Hi ${user.name}, your Wildzoc account is ready.`
     }).catch(() => {});
     res.status(201).json({
       message: 'Registration successful',

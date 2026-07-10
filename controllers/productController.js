@@ -5,11 +5,11 @@ const generateImagePath = (filename) => filename?.startsWith('http') ? filename 
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const parseJsonField = (field) => {
-  if (!field) return undefined;
+  if (field === undefined || field === null) return undefined;
   if (Array.isArray(field)) return field;
-  // If it's a string that looks like comma-separated, split it
-  if (typeof field === 'string' && field.includes(',')) {
-    return field.split(',').map(item => item.trim()).filter(Boolean);
+  if (typeof field === 'string' && field.trim() === '') return [];
+  if (typeof field === 'string' && (field.includes(',') || field.includes('\n'))) {
+    return field.split(/[\n,]/).map(item => item.trim()).filter(Boolean);
   }
   try {
     const parsed = JSON.parse(field);
@@ -19,15 +19,21 @@ const parseJsonField = (field) => {
   }
 };
 
-const normalizePrice = (data) => {
+const parseBoolean = (value) => value === true || value === 'true' || value === '1' || value === 1;
+const uniqueList = (items = []) => [...new Set(items.filter(Boolean))];
+
+const normalizeProductData = (data) => {
   if (!data) return data;
-  const requested = Number(data.price);
-  return {
-    ...data,
-    price: requested === 99 ? 99 : 49,
-    original_price: null,
-    discount_percentage: 0
-  };
+  const next = { ...data };
+  if (next.price !== undefined) next.price = Number(next.price || 0);
+  if (next.original_price === '' || next.original_price === undefined) next.original_price = null;
+  else next.original_price = Number(next.original_price || 0);
+  if (next.discount_percentage !== undefined) next.discount_percentage = Number(next.discount_percentage || 0);
+  if (next.stock !== undefined) next.stock = Number(next.stock || 0);
+  ['is_featured', 'is_bestseller', 'is_clearance', 'is_active'].forEach((key) => {
+    if (next[key] !== undefined) next[key] = parseBoolean(next[key]);
+  });
+  return next;
 };
 
 exports.getProducts = async (req, res) => {
@@ -144,21 +150,16 @@ exports.createProduct = async (req, res) => {
   try {
     let productData = { ...req.body };
     
+    const requestedImages = parseJsonField(productData.images);
+    if (requestedImages !== undefined) {
+      productData.images = requestedImages;
+    }
+
     if (req.files && req.files.length > 0) {
       const uploadedImages = req.files.map(file => generateImagePath(file.filename));
-      
-      if (productData.images) {
-        const existingImages = parseJsonField(productData.images);
-        if (Array.isArray(existingImages)) {
-          productData.images = [...existingImages, ...uploadedImages];
-        } else {
-          productData.images = [existingImages, ...uploadedImages];
-        }
-      } else {
-        productData.images = uploadedImages;
-      }
-    } else if (productData.images) {
-      productData.images = parseJsonField(productData.images);
+      productData.images = uniqueList([...(productData.images || []), ...uploadedImages]);
+    } else if (requestedImages !== undefined) {
+      productData.images = uniqueList(requestedImages);
     }
     
     if (productData.sizes) {
@@ -168,7 +169,12 @@ exports.createProduct = async (req, res) => {
       productData.colors = parseJsonField(productData.colors);
     }
     
-    const product = await Product.create(normalizePrice(productData));
+    ['is_featured', 'is_bestseller', 'is_clearance'].forEach((key) => {
+      if (productData[key] === undefined) productData[key] = false;
+    });
+    if (productData.is_active === undefined) productData.is_active = true;
+
+    const product = await Product.create(normalizeProductData(productData));
     res.status(201).json(product);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -181,26 +187,20 @@ exports.updateProduct = async (req, res) => {
     if (!product) return res.status(404).json({ message: 'Product not found' });
     
     let updateData = { ...req.body };
-    const replaceImages = req.query.replaceImages === 'true';
+    const replaceImages = req.query.replaceImages === 'true' || req.body.replaceImages === 'true';
+    delete updateData.replaceImages;
     
+    const requestedImages = parseJsonField(updateData.images);
+    if (requestedImages !== undefined) {
+      updateData.images = requestedImages;
+    }
+
     if (req.files && req.files.length > 0) {
       const uploadedImages = req.files.map(file => generateImagePath(file.filename));
-      
-      if (replaceImages) {
-        updateData.images = uploadedImages;
-      } else if (updateData.images) {
-        const existingImages = parseJsonField(updateData.images);
-        if (Array.isArray(existingImages)) {
-          updateData.images = [...existingImages, ...uploadedImages];
-        } else {
-          updateData.images = [existingImages, ...uploadedImages];
-        }
-      } else {
-        const currentImages = product.images || [];
-        updateData.images = [...currentImages, ...uploadedImages];
-      }
-    } else if (updateData.images) {
-      updateData.images = parseJsonField(updateData.images);
+      const baseImages = replaceImages ? (requestedImages || []) : [...(product.images || []), ...(requestedImages || [])];
+      updateData.images = uniqueList([...baseImages, ...uploadedImages]);
+    } else if (requestedImages !== undefined) {
+      updateData.images = uniqueList(requestedImages);
     }
     
     if (updateData.sizes) {
@@ -210,7 +210,7 @@ exports.updateProduct = async (req, res) => {
       updateData.colors = parseJsonField(updateData.colors);
     }
     
-    await product.update(normalizePrice(updateData));
+    await product.update(normalizeProductData(updateData));
     const updatedProduct = await Product.findByPk(req.params.id);
     res.json(updatedProduct);
   } catch (error) {

@@ -84,6 +84,9 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/refresh-images', adminAuth, async (req, res) => {
+  if (process.env.ALLOW_SAMPLE_IMAGE_REFRESH !== 'true') {
+    return res.status(403).json({ message: 'Sample image refresh is disabled. Manage product images from admin.' });
+  }
   try {
     const products = await Product.findAll();
     let idx = 0;
@@ -124,8 +127,8 @@ app.post('/api/import-images', adminAuth, async (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 const validImages = [
-  '/uploads/products/placeholder-wildctrl-1.jpeg',
-  '/uploads/products/placeholder-wildctrl-2.jpeg'
+  '/uploads/products/placeholder-wildzoc-1.jpeg',
+  '/uploads/products/placeholder-wildzoc-2.jpeg'
 ];
 
 const catalogCategories = [
@@ -143,8 +146,8 @@ const catalogCategories = [
 
 const productSeeds = [
   {
-    name: 'WildCtrl Printed Co-Ord Set',
-    slug: 'wildctrl-printed-co-ord-set',
+    name: 'Wildzoc Printed Co-Ord Set',
+    slug: 'wildzoc-printed-co-ord-set',
     description: 'Soft patterned co-ord set with a relaxed unisex fit for everyday comfort.',
     category: 'unisex',
     price: 99,
@@ -198,7 +201,7 @@ const productSeeds = [
   {
     name: 'Kids Floral Frock',
     slug: 'kids-floral-frock',
-    description: 'Playful floral frock with a soft lining and bright WildCtrl detailing.',
+    description: 'Playful floral frock with a soft lining and bright Wildzoc detailing.',
     category: 'kids',
     price: 49,
     original_price: null,
@@ -310,7 +313,7 @@ const legacyProductUpdates = [
   {
     slug: 'ladies-designer-kurti-set',
     name: 'Unisex Designer Kurta Set',
-    description: 'Designer kurta set with a comfortable unisex fit and fresh WildCtrl colors.',
+    description: 'Designer kurta set with a comfortable unisex fit and fresh Wildzoc colors.',
     category: 'unisex',
     sizes: ['S', 'M', 'L', 'XL'],
     colors: ['Pink', 'Blue', 'Green']
@@ -377,10 +380,10 @@ const seedData = async () => {
   try {
     // Seed admin user
     const [adminUser, createdAdmin] = await User.findOrCreate({
-      where: { email: 'admin@wildctrl.in' },
+      where: { email: 'admin@wildzoc.com' },
       defaults: {
-        name: 'WildCtrl Admin',
-        email: 'admin@wildctrl.in',
+        name: 'Wildzoc Admin',
+        email: 'admin@wildzoc.com',
         password: 'admin123',
         role: 'admin',
         is_verified: true
@@ -388,14 +391,14 @@ const seedData = async () => {
     });
     if (!createdAdmin) {
       await adminUser.update({
-        name: 'WildCtrl Admin',
+        name: 'Wildzoc Admin',
         password: 'admin123',
         role: 'admin',
         is_verified: true
       });
     }
     if (createdAdmin) {
-      console.log('Admin user created: admin@wildctrl.in / admin123');
+      console.log('Admin user created: admin@wildzoc.com / admin123');
     }
 
     const categoryMap = {};
@@ -435,6 +438,12 @@ const seedData = async () => {
       { where: { slug: allCategories.map(category => category.slug).filter(slug => !['unisex', 'kids'].includes(slug)) } }
     );
 
+    const existingProductCount = await Product.count();
+    if (existingProductCount > 0) {
+      console.log(`Catalog already has ${existingProductCount} products. Skipping product seed overwrite so admin edits persist.`);
+      return;
+    }
+
     for (const productData of productSeeds) {
       const { category, ...productFields } = productData;
       const [product, created] = await Product.findOrCreate({
@@ -467,15 +476,6 @@ const seedData = async () => {
       );
     }
 
-    const allProducts = await Product.findAll({ order: [['createdAt', 'ASC']] });
-    for (let index = 0; index < allProducts.length; index++) {
-      await allProducts[index].update({
-        price: index % 2 === 0 ? 49 : 99,
-        original_price: null,
-        discount_percentage: 0
-      });
-    }
-
     console.log('Catalog reconciled: active categories are Unisex and Kids');
   } catch (error) {
     console.error('Seed error:', error);
@@ -486,14 +486,17 @@ sequelize.sync({ alter: true }).then(async () => {
   console.log('Database connected and synced');
   await seedData();
 
-  // Auto-import images from local folder to server (safe to run multiple times)
-  try {
-    console.log('\n📸 Processing product and category images...');
-    await importExistingImages();
-    await assignCategoryImages();
-    console.log('✅ Image import completed');
-  } catch (err) {
-    console.error('❌ Image import error:', err.message);
+  if (process.env.AUTO_IMPORT_IMAGES === 'true') {
+    try {
+      console.log('\nProcessing product and category images...');
+      await importExistingImages();
+      await assignCategoryImages();
+      console.log('Image import completed');
+    } catch (err) {
+      console.error('Image import error:', err.message);
+    }
+  } else {
+    console.log('Image auto-import disabled. Product images are managed from admin.');
   }
 
   app.listen(PORT, () => {
@@ -503,7 +506,7 @@ sequelize.sync({ alter: true }).then(async () => {
     console.log('Admin portal: http://localhost:3000/login');
     console.log('Website: http://localhost:3000');
     console.log('');
-    console.log('📝 Admin credentials: admin@wildctrl.in / admin123');
+    console.log('Admin credentials: admin@wildzoc.com / admin123');
   });
 }).catch(err => {
   console.error('Database connection error:', err);

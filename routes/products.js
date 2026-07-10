@@ -17,11 +17,14 @@ router.put('/:id', adminAuth, uploadProducts, productController.updateProduct);
 router.delete('/:id', adminAuth, productController.deleteProduct);
 
 router.post('/refresh-images', adminAuth, async (req, res) => {
+  if (process.env.ALLOW_SAMPLE_IMAGE_REFRESH !== 'true') {
+    return res.status(403).json({ message: 'Sample image refresh is disabled. Manage product images from admin.' });
+  }
   const { importExistingImages, assignCategoryImages } = require('../utils/importImages');
   const result = await importExistingImages();
   const categoryResult = await assignCategoryImages();
   res.json({
-    message: 'Images refreshed from local WildCtrl assets',
+    message: 'Images refreshed from local Wildzoc assets',
     productsUpdated: result?.productsUpdated || 0,
     imagesCopied: result?.imagesCopied || 0,
     categoriesUpdated: categoryResult || 0

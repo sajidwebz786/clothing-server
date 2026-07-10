@@ -18,7 +18,7 @@ try {
 }
 
 const sendMail = async ({ to, subject, text }) => {
-  const from = process.env.MAIL_FROM || 'WildCtrl <no-reply@wildctrl.in>';
+  const from = process.env.MAIL_FROM || 'Wildzoc <support@wildzoc.com>';
   if (transporter) {
     return transporter.sendMail({ from, to, subject, text });
   }
@@ -28,7 +28,7 @@ const sendMail = async ({ to, subject, text }) => {
 };
 
 const notifyAdmin = (subject, text) => {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@wildctrl.in';
+  const adminEmail = process.env.ADMIN_EMAIL || 'support@wildzoc.com';
   return sendMail({ to: adminEmail, subject, text });
 };
 

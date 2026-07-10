@@ -2,7 +2,7 @@ const { Order, OrderItem, Product, User, Address, Cart } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 const { notifyAdmin, sendMail } = require('../utils/mailer');
 
-const allowedDisplayPrice = (price) => Number(price) >= 75 ? 99 : 49;
+const orderPrice = (price) => Number(price || 0);
 
 exports.createOrder = async (req, res) => {
   try {
@@ -14,12 +14,12 @@ exports.createOrder = async (req, res) => {
     if (!address) return res.status(400).json({ message: 'Address not found' });
     let subtotal = 0;
     for (const item of cartItems) {
-      subtotal += allowedDisplayPrice(item.product.price) * item.quantity;
+      subtotal += orderPrice(item.product.price) * item.quantity;
     }
     const shipping = 0;
     const total = subtotal + shipping;
-    const orderNumber = 'WCT' + Date.now() + Math.random().toString(36).substr(2, 4).toUpperCase();
-    const trackingNumber = 'WCT' + uuidv4().split('-')[0].toUpperCase();
+    const orderNumber = 'WZ' + Date.now() + Math.random().toString(36).substr(2, 4).toUpperCase();
+    const trackingNumber = 'WZ' + uuidv4().split('-')[0].toUpperCase();
     const order = await Order.create({
       user_id: userId,
       order_number: orderNumber,
@@ -40,7 +40,7 @@ exports.createOrder = async (req, res) => {
         product_name: item.product.name,
         product_image: item.product.images?.[0],
         quantity: item.quantity,
-        price: allowedDisplayPrice(item.product.price),
+        price: orderPrice(item.product.price),
         size: item.size,
         color: item.color
       });
@@ -49,13 +49,13 @@ exports.createOrder = async (req, res) => {
     await Cart.destroy({ where: { user_id: userId } });
     const user = await User.findByPk(userId);
     notifyAdmin(
-      `New WildCtrl order ${order.order_number}`,
+      `New Wildzoc order ${order.order_number}`,
       `${user?.name || 'Customer'} placed order ${order.order_number} for ₹${total}. UTR: ${payment_id || 'not provided'}.`
     ).catch(() => {});
     if (user?.email) {
       sendMail({
         to: user.email,
-        subject: `WildCtrl order received: ${order.order_number}`,
+        subject: `Wildzoc order received: ${order.order_number}`,
         text: `We received your order. UTR: ${payment_id || 'not provided'}. Admin will verify the payment and send dispatch details.`
       }).catch(() => {});
     }
@@ -133,7 +133,7 @@ exports.updateOrderStatus = async (req, res) => {
     if (order?.user?.email) {
       sendMail({
         to: order.user.email,
-        subject: `WildCtrl order update: ${order.order_number}`,
+        subject: `Wildzoc order update: ${order.order_number}`,
         text: dispatch_message || `Your order is now ${order.order_status}. Courier: ${courier_name || 'pending'}. Tracking: ${tracking_number || 'pending'}.`
       }).catch(() => {});
     }

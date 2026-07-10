@@ -4,7 +4,7 @@ require('dotenv').config();
 const useSsl = process.env.DB_SSL === 'true' || Boolean(process.env.RENDER);
 
 const sequelize = new Sequelize(
-  process.env.DB_NAME || 'wildctrldb',
+  process.env.DB_NAME || 'wildzocdb',
   process.env.DB_USER || 'postgres',
   process.env.DB_PASS || 'niavoit',
   {
