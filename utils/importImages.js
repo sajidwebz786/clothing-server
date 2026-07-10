@@ -1,10 +1,61 @@
 const fs = require('fs');
 const path = require('path');
+const { v2: cloudinary } = require('cloudinary');
 const { sequelize, Product, Category } = require('../models');
+require('dotenv').config();
 
 const SOURCE_IMAGES_DIR = path.join(__dirname, '..', '..', 'clothing-web', 'src', 'assets', 'images');
 const DESTINATION_PRODUCTS_DIR = path.join(__dirname, '..', 'uploads', 'products');
 const DESTINATION_CATEGORIES_DIR = path.join(__dirname, '..', 'uploads', 'categories');
+const USE_CLOUDINARY = Boolean(process.env.CLOUDINARY_URL);
+
+if (USE_CLOUDINARY) {
+  cloudinary.config({ secure: true });
+}
+
+const isImageUrl = (image) => typeof image === 'string' && image.startsWith('http');
+
+const isBrandAsset = (resource) => {
+  const text = `${resource.public_id || ''} ${resource.filename || ''} ${resource.secure_url || ''}`.toLowerCase();
+  return ['logo', 'qr', 'hypzo', 'oldlogo', 'dark-logo', 'full-logo'].some((word) => text.includes(word));
+};
+
+const getCloudinaryImages = async (folder) => {
+  if (!USE_CLOUDINARY) return [];
+
+  const collect = async (options) => {
+    const resources = [];
+    let nextCursor;
+    do {
+      const result = await cloudinary.api.resources({
+        resource_type: 'image',
+        type: 'upload',
+        max_results: 100,
+        ...options,
+        next_cursor: nextCursor
+      });
+      resources.push(...(result.resources || []));
+      nextCursor = result.next_cursor;
+    } while (nextCursor && resources.length < 500);
+    return resources;
+  };
+
+  let resources = await collect({ prefix: `wildzoc/${folder}` });
+  if (resources.length === 0) {
+    resources = await collect({});
+  }
+
+  return resources
+    .filter((resource) => resource.secure_url && !isBrandAsset(resource))
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .map((resource) => resource.secure_url);
+};
+
+const productHasCloudinaryImages = (product) => (
+  Array.isArray(product.images) &&
+  product.images.length > 0 &&
+  product.images.some(isImageUrl)
+);
 
 /**
  * Batch import existing images from clothing-web/src/assets/images/
@@ -13,6 +64,39 @@ const DESTINATION_CATEGORIES_DIR = path.join(__dirname, '..', 'uploads', 'catego
 const importExistingImages = async () => {
   try {
     console.log('Starting batch image import...');
+
+    if (USE_CLOUDINARY) {
+      const cloudinaryImages = await getCloudinaryImages('products');
+      if (cloudinaryImages.length > 0) {
+        const products = await Product.findAll({ order: [['createdAt', 'ASC']] });
+        let imageIndex = 0;
+        let productsUpdated = 0;
+
+        for (const product of products) {
+          if (productHasCloudinaryImages(product)) {
+            console.log(`Skipping product ${product.name}: already has Cloudinary/external images`);
+            continue;
+          }
+
+          const first = cloudinaryImages[imageIndex % cloudinaryImages.length];
+          const second = cloudinaryImages[(imageIndex + 1) % cloudinaryImages.length];
+          const images = first === second ? [first] : [first, second];
+          await product.update({ images });
+          imageIndex += 2;
+          productsUpdated++;
+        }
+
+        console.log(`Assigned Cloudinary images to ${productsUpdated} products`);
+        return {
+          productsUpdated,
+          imagesCopied: 0,
+          source: 'cloudinary'
+        };
+      }
+
+      console.log('Cloudinary is configured, but no image resources were found. Falling back to local image import.');
+    }
+
     console.log('Source directory:', SOURCE_IMAGES_DIR);
 
     // Check if source directory exists
@@ -65,6 +149,11 @@ const importExistingImages = async () => {
     // Assign images to products that don't already have images
     for (let i = 0; i < products.length; i++) {
       const product = products[i];
+
+      if (productHasCloudinaryImages(product)) {
+        console.log(`Skipping product ${product.name}: already has Cloudinary/external images`);
+        continue;
+      }
 
       const hasLocalUploads = product.images &&
         Array.isArray(product.images) &&
@@ -140,6 +229,29 @@ const assignCategoryImages = async () => {
   try {
     console.log('\nAssigning category images...');
 
+    if (USE_CLOUDINARY) {
+      const cloudinaryImages = await getCloudinaryImages('categories');
+      if (cloudinaryImages.length > 0) {
+        const categories = await Category.findAll({ order: [['createdAt', 'ASC']] });
+        let updatedCount = 0;
+
+        for (let index = 0; index < categories.length; index++) {
+          const category = categories[index];
+          if (isImageUrl(category.image)) {
+            console.log(`Skipping category ${category.name}: already has Cloudinary/external image`);
+            continue;
+          }
+          await category.update({ image: cloudinaryImages[index % cloudinaryImages.length] });
+          updatedCount++;
+        }
+
+        console.log(`Assigned Cloudinary images to ${updatedCount} categories`);
+        return updatedCount;
+      }
+
+      console.log('Cloudinary is configured, but no category image resources were found. Falling back to local category images.');
+    }
+
     const categoriesDir = path.join(__dirname, '..', '..', 'clothing-web', 'src', 'assets', 'images');
     const destinationDir = path.join(__dirname, '..', 'uploads', 'categories');
 
@@ -168,6 +280,11 @@ const assignCategoryImages = async () => {
     let updatedCount = 0
 
     for (const category of categories) {
+      if (isImageUrl(category.image)) {
+        console.log(`Skipping category ${category.name}: already has Cloudinary/external image`)
+        continue
+      }
+
       if (category.image && category.image.startsWith('/uploads/categories/')) {
         console.log(`Skipping category ${category.name}: already has local image`)
         continue
