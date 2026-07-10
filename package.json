@@ -1,7 +1,7 @@
 {
-  "name": "wildctrl-server",
+  "name": "wildzoc-server",
   "version": "1.0.0",
-  "description": "WildCtrl E-Commerce Backend Server",
+  "description": "Wildzoc E-Commerce Backend Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

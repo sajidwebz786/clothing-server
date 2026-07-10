@@ -1,6 +1,8 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
+const useSsl = process.env.DB_SSL === 'true' || Boolean(process.env.RENDER);
+
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'wildctrldb',
   process.env.DB_USER || 'postgres',
@@ -10,6 +12,14 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT || 5432,
     dialect: 'postgres',
     logging: false,
+    dialectOptions: useSsl
+      ? {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false
+          }
+        }
+      : {},
     pool: {
       max: 10,
       min: 0,
