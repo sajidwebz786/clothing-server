@@ -16,6 +16,11 @@ exports.getDashboardStats = async (req, res) => {
     const totalUsers = await User.count({ where: { role: 'user' } });
     const totalProducts = await Product.count({ where: { is_active: true } });
     const totalOrders = await Order.count();
+    const pendingOrders = await Order.count({ where: { order_status: 'pending' } });
+    const awaitingPayment = await Order.count({ where: { payment_status: 'pending' } });
+    const processingOrders = await Order.count({ where: { order_status: 'processing' } });
+    const shippedOrders = await Order.count({ where: { order_status: 'shipped' } });
+    const deliveredOrders = await Order.count({ where: { order_status: 'delivered' } });
     const revenueResult = await sequelize.query(
       "SELECT COALESCE(SUM(total), 0) as total FROM orders WHERE payment_status = 'paid'",
       { type: sequelize.QueryTypes.SELECT }
@@ -39,6 +44,11 @@ exports.getDashboardStats = async (req, res) => {
         totalUsers,
         totalProducts,
         totalOrders,
+        pendingOrders,
+        awaitingPayment,
+        processingOrders,
+        shippedOrders,
+        deliveredOrders,
         revenue,
         pendingReturns
       },

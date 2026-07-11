@@ -137,6 +137,10 @@ exports.updateOrderStatus = async (req, res) => {
         text: dispatch_message || `Your order is now ${order.order_status}. Courier: ${courier_name || 'pending'}. Tracking: ${tracking_number || 'pending'}.`
       }).catch(() => {});
     }
+    notifyAdmin(
+      `Order ${order.order_number} updated to ${order.order_status}`,
+      `Payment: ${order.payment_status}. Courier: ${order.courier_name || 'pending'}. Tracking: ${order.tracking_number || 'pending'}. Customer: ${order.user?.name || 'Unknown'} (${order.user?.email || 'no email'}).`
+    ).catch(() => {});
     res.json(order);
   } catch (error) {
     res.status(500).json({ message: error.message });
