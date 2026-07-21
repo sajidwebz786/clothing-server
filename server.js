@@ -6,9 +6,26 @@ const { sequelize, Category, Product, User } = require('./models');
 const { uploadProducts, uploadCategory, generateImagePath } = require('./config/upload');
 const { importExistingImages, assignCategoryImages } = require('./utils/importImages');
 const { adminAuth } = require('./middleware/auth');
+const { normalizeProductImages } = require('./utils/productImages');
 require('dotenv').config();
 
 const app = express();
+
+const repairProductImages = async () => {
+  const products = await Product.findAll();
+  let repaired = 0;
+  for (const product of products) {
+    const storedImages = product.getDataValue('images');
+    const cleanImages = normalizeProductImages(storedImages);
+    if (JSON.stringify(storedImages || []) !== JSON.stringify(cleanImages)) {
+      product.setDataValue('images', cleanImages);
+      product.changed('images', true);
+      await product.save({ fields: ['images'] });
+      repaired += 1;
+    }
+  }
+  if (repaired) console.log(`Repaired image URLs for ${repaired} product(s)`);
+};
 
 // Ensure upload directories exist
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -489,6 +506,7 @@ const seedData = async () => {
 sequelize.sync({ alter: true }).then(async () => {
   console.log('Database connected and synced');
   await seedData();
+  await repairProductImages();
 
   if (process.env.AUTO_IMPORT_IMAGES === 'true') {
     try {

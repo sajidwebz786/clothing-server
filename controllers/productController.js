@@ -1,5 +1,6 @@
 const { Product, Category } = require('../models');
 const { Op } = require('sequelize');
+const { normalizeProductImages } = require('../utils/productImages');
 
 const generateImagePath = (filename) => filename?.startsWith('http') ? filename : `/uploads/products/${filename}`;
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -8,19 +9,18 @@ const parseJsonField = (field) => {
   if (field === undefined || field === null) return undefined;
   if (Array.isArray(field)) return field;
   if (typeof field === 'string' && field.trim() === '') return [];
-  if (typeof field === 'string' && (field.includes(',') || field.includes('\n'))) {
-    return field.split(/[\n,]/).map(item => item.trim()).filter(Boolean);
-  }
   try {
     const parsed = JSON.parse(field);
     return Array.isArray(parsed) ? parsed : [parsed];
   } catch {
-    return [field];
+    return typeof field === 'string'
+      ? field.split(/[\n,]/).map(item => item.trim()).filter(Boolean)
+      : [field];
   }
 };
 
 const parseBoolean = (value) => value === true || value === 'true' || value === '1' || value === 1;
-const uniqueList = (items = []) => [...new Set(items.filter(Boolean))];
+const uniqueList = (items = []) => normalizeProductImages(items);
 const MAX_PRODUCT_IMAGES = 3;
 
 const validateProductImages = (images, res) => {
