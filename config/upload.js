@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_SIZE = 5 * 1024 * 1024;
+const MAX_PRODUCT_IMAGES = 3;
 const useCloudinary = Boolean(process.env.CLOUDINARY_URL);
 
 if (useCloudinary) {
@@ -97,11 +98,11 @@ const uploadProducts = (req, res, next) => {
     storage: useCloudinary ? multer.memoryStorage() : productStorage,
     limits: { fileSize: MAX_SIZE },
     fileFilter
-  }).array('images', 5)(req, res, async (err) => {
+  }).array('images', MAX_PRODUCT_IMAGES)(req, res, async (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_COUNT') {
-          return res.status(400).json({ error: 'Maximum 5 images allowed' });
+          return res.status(400).json({ message: `Maximum ${MAX_PRODUCT_IMAGES} images allowed` });
         }
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ error: 'File size must be less than 5MB' });

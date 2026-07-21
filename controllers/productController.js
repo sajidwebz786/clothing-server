@@ -21,6 +21,13 @@ const parseJsonField = (field) => {
 
 const parseBoolean = (value) => value === true || value === 'true' || value === '1' || value === 1;
 const uniqueList = (items = []) => [...new Set(items.filter(Boolean))];
+const MAX_PRODUCT_IMAGES = 3;
+
+const validateProductImages = (images, res) => {
+  if ((images || []).length <= MAX_PRODUCT_IMAGES) return true;
+  res.status(400).json({ message: `A product can have a maximum of ${MAX_PRODUCT_IMAGES} images` });
+  return false;
+};
 
 const normalizeProductData = (data) => {
   if (!data) return data;
@@ -161,6 +168,7 @@ exports.createProduct = async (req, res) => {
     } else if (requestedImages !== undefined) {
       productData.images = uniqueList(requestedImages);
     }
+    if (!validateProductImages(productData.images, res)) return;
     
     if (productData.sizes) {
       productData.sizes = parseJsonField(productData.sizes);
@@ -202,6 +210,7 @@ exports.updateProduct = async (req, res) => {
     } else if (requestedImages !== undefined) {
       updateData.images = uniqueList(requestedImages);
     }
+    if (!validateProductImages(updateData.images, res)) return;
     
     if (updateData.sizes) {
       updateData.sizes = parseJsonField(updateData.sizes);
