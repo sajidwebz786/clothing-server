@@ -5,9 +5,11 @@ const { auth, adminAuth } = require('../middleware/auth');
 
 router.get('/', auth, orderController.getOrders);
 router.get('/track/:tracking', orderController.trackOrder);
-router.get('/:id', auth, orderController.getOrderById);
-router.post('/', auth, orderController.createOrder);
-router.put('/:id/status', adminAuth, orderController.updateOrderStatus);
+router.post('/razorpay/create', auth, orderController.createRazorpayOrder);
+router.post('/razorpay/verify', auth, orderController.verifyRazorpayPayment);
+router.post('/razorpay/webhook', orderController.razorpayWebhook);
 router.get('/admin/all', adminAuth, orderController.getAllOrders);
+router.get('/:id', auth, orderController.getOrderById);
+router.put('/:id/status', adminAuth, orderController.updateOrderStatus);
 
 module.exports = router;

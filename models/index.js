@@ -244,6 +244,9 @@ const Order = sequelize.define('Order', {
   payment_id: {
     type: DataTypes.STRING(100)
   },
+  razorpay_order_id: {
+    type: DataTypes.STRING(100)
+  },
   order_status: {
     type: DataTypes.ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'),
     defaultValue: 'pending'

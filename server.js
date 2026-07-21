@@ -23,7 +23,11 @@ const categoriesUploadDir = path.join(uploadsDir, 'categories');
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buffer) => {
+    if (req.originalUrl === '/api/orders/razorpay/webhook') req.rawBody = buffer;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/uploads', (req, res, next) => {

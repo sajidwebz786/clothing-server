@@ -1,5 +1,6 @@
 const { User, Product, Order, OrderItem, Category, Return } = require('../models');
 const { sequelize } = require('../models');
+const { Op } = require('sequelize');
 const { v2: cloudinary } = require('cloudinary');
 
 if (process.env.CLOUDINARY_URL) {
@@ -14,20 +15,18 @@ const isBrandAsset = (resource) => {
 exports.getDashboardStats = async (req, res) => {
   try {
     const totalUsers = await User.count({ where: { role: 'user' } });
-    const totalProducts = await Product.count({ where: { is_active: true } });
+    const totalProducts = await Product.count();
+    const activeProducts = await Product.count({ where: { is_active: true } });
     const totalOrders = await Order.count();
     const pendingOrders = await Order.count({ where: { order_status: 'pending' } });
     const awaitingPayment = await Order.count({ where: { payment_status: 'pending' } });
+    const paidOrders = await Order.count({ where: { payment_status: 'paid' } });
     const processingOrders = await Order.count({ where: { order_status: 'processing' } });
     const shippedOrders = await Order.count({ where: { order_status: 'shipped' } });
     const deliveredOrders = await Order.count({ where: { order_status: 'delivered' } });
-    const revenueResult = await sequelize.query(
-      "SELECT COALESCE(SUM(total), 0) as total FROM orders WHERE payment_status = 'paid'",
-      { type: sequelize.QueryTypes.SELECT }
-    );
-    const revenue = revenueResult[0]?.total || 0;
+    const revenue = await Order.sum('total', { where: { payment_status: 'paid' } }) || 0;
     const lowStock = await Product.findAll({
-      where: { is_active: true, stock: { [sequelize.Op.lte]: 5 } },
+      where: { is_active: true, stock: { [Op.lte]: 5 } },
       attributes: ['id', 'name', 'stock'],
       limit: 10
     });
@@ -43,9 +42,11 @@ exports.getDashboardStats = async (req, res) => {
       stats: {
         totalUsers,
         totalProducts,
+        activeProducts,
         totalOrders,
         pendingOrders,
         awaitingPayment,
+        paidOrders,
         processingOrders,
         shippedOrders,
         deliveredOrders,
