@@ -7,24 +7,36 @@ const { uploadProducts, uploadCategory, generateImagePath } = require('./config/
 const { importExistingImages, assignCategoryImages } = require('./utils/importImages');
 const { adminAuth } = require('./middleware/auth');
 const { normalizeProductImages } = require('./utils/productImages');
+const { normalizeProductOptions } = require('./utils/productOptions');
 require('dotenv').config();
 
 const app = express();
 
-const repairProductImages = async () => {
+const repairProductData = async () => {
   const products = await Product.findAll();
   let repaired = 0;
   for (const product of products) {
     const storedImages = product.getDataValue('images');
     const cleanImages = normalizeProductImages(storedImages);
-    if (JSON.stringify(storedImages || []) !== JSON.stringify(cleanImages)) {
+    const storedSizes = product.getDataValue('sizes');
+    const cleanSizes = normalizeProductOptions(storedSizes);
+    const storedColors = product.getDataValue('colors');
+    const cleanColors = normalizeProductOptions(storedColors);
+    const changed = JSON.stringify(storedImages || []) !== JSON.stringify(cleanImages)
+      || JSON.stringify(storedSizes || []) !== JSON.stringify(cleanSizes)
+      || JSON.stringify(storedColors || []) !== JSON.stringify(cleanColors);
+    if (changed) {
       product.setDataValue('images', cleanImages);
+      product.setDataValue('sizes', cleanSizes);
+      product.setDataValue('colors', cleanColors);
       product.changed('images', true);
-      await product.save({ fields: ['images'] });
+      product.changed('sizes', true);
+      product.changed('colors', true);
+      await product.save({ fields: ['images', 'sizes', 'colors'] });
       repaired += 1;
     }
   }
-  if (repaired) console.log(`Repaired image URLs for ${repaired} product(s)`);
+    if (repaired) console.log(`Repaired images/specifications for ${repaired} product(s)`);
 };
 
 // Ensure upload directories exist
@@ -506,7 +518,7 @@ const seedData = async () => {
 sequelize.sync({ alter: true }).then(async () => {
   console.log('Database connected and synced');
   await seedData();
-  await repairProductImages();
+  await repairProductData();
 
   if (process.env.AUTO_IMPORT_IMAGES === 'true') {
     try {

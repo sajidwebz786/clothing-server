@@ -2,6 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const bcrypt = require('bcryptjs');
 const { normalizeProductImages } = require('../utils/productImages');
+const { normalizeProductOptions } = require('../utils/productOptions');
 
 const User = sequelize.define('User', {
   id: {
@@ -182,10 +183,24 @@ const Product = sequelize.define('Product', {
     defaultValue: 0
   },
   sizes: {
-    type: DataTypes.JSON
+    type: DataTypes.JSON,
+    defaultValue: [],
+    get() {
+      return normalizeProductOptions(this.getDataValue('sizes'));
+    },
+    set(value) {
+      this.setDataValue('sizes', normalizeProductOptions(value));
+    }
   },
   colors: {
-    type: DataTypes.JSON
+    type: DataTypes.JSON,
+    defaultValue: [],
+    get() {
+      return normalizeProductOptions(this.getDataValue('colors'));
+    },
+    set(value) {
+      this.setDataValue('colors', normalizeProductOptions(value));
+    }
   },
   images: {
     type: DataTypes.JSON,
